@@ -53,7 +53,7 @@ python scripts/main.py --action reverse --bazi "庚午 壬午 辛亥 甲午"
 
 ## 安装
 
-将 `xuanyin-bazi` 目录复制到 `~/.codeartsdoer/skills/` 下即可自动加载。
+将 `xuanyin-bazi` 目录复制到 `~/.xxx/skills/` 下即可自动加载。
 
 安装Python依赖：
 ```bash
