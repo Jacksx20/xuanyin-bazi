@@ -391,9 +391,266 @@ def Action_ReverseBazi(bazi_str):
     return {"八字": bazi_str, "对应公历时间": results}
 
 
+WX_CHARACTER = {
+    "木": {"阳": "刚直不阿、积极向上", "阴": "柔顺温和、灵活变通"},
+    "火": {"阳": "热情奔放、光明磊落", "阴": "细腻敏感、礼数周到"},
+    "土": {"阳": "笃实厚重、包容大度", "阴": "谨慎保守、思虑周密"},
+    "金": {"阳": "果断刚毅、重义轻财", "阴": "精明细腻、追求完美"},
+    "水": {"阳": "聪慧灵动、足智多谋", "阴": "沉静内敛、洞察力强"},
+}
+WX_VIRTUE = {"木": "仁", "火": "礼", "土": "信", "金": "义", "水": "智"}
+WX_ORGAN = {"木": ("肝", "胆"), "火": ("心", "小肠"), "土": ("脾", "胃"), "金": ("肺", "大肠"), "水": ("肾", "膀胱")}
+WX_ILLNESS_HI = {"木": "肝气郁结、头痛眩晕", "火": "心火旺盛、失眠烦躁", "土": "脾胃湿热、消化不良", "金": "肺热咳嗽、皮肤干燥", "水": "肾阳过亢、水肿"}
+WX_ILLNESS_LO = {"木": "肝血不足、视力下降", "火": "心血不足、面色苍白", "土": "脾胃虚弱、食欲不振", "金": "肺气不足、易感冒", "水": "肾气不足、腰膝酸软"}
+SS_TRAIT = {
+    "比肩": ("固执己见、竞争心重", "独立自主、同辈缘好", "依赖心重、缺乏主见"),
+    "劫财": ("冲动莽撞、争夺好斗", "果敢有魄力、善合作", "胆小怕事、不善交际"),
+    "食神": ("懒散享乐、缺乏进取", "温和有福、才华内敛", "劳碌辛苦、缺乏享受"),
+    "伤官": ("叛逆傲慢、口无遮拦", "才华横溢、思维敏捷", "拘谨保守、缺乏创意"),
+    "偏财": ("挥霍无度、投机冒险", "交际广泛、财运灵活", "守财吝啬、缺乏机缘"),
+    "正财": ("守旧吝啬、缺乏魄力", "勤俭务实、收入稳定", "财来财去、不善理财"),
+    "七杀": ("暴躁偏激、压力重重", "魄力过人、权威显赫", "胆小怯懦、缺乏主见"),
+    "正官": ("拘泥守规、缺乏变通", "正直守纪、仕途可期", "不服约束、目无法纪"),
+    "偏印": ("孤僻古怪、多疑敏感", "偏才出众、悟性极高", "缺乏灵感、思维迟钝"),
+    "正印": ("依赖心重、缺乏独立", "学业有成、仁慈宽厚", "知识浅薄、缺乏靠山"),
+}
+SS_INDUSTRY = {
+    "正官": "公务员、行政管理、法律、审计",
+    "七杀": "军警、外科医生、创业、竞争行业",
+    "正印": "教育、学术、出版、公益",
+    "偏印": "技术、研发、玄学、心理咨询",
+    "食神": "文艺、餐饮、旅游、教育",
+    "伤官": "设计、表演、律师、自由职业",
+    "正财": "金融、会计、零售、制造业",
+    "偏财": "投资、贸易、中介、公关",
+    "比肩": "体育、竞争性行业、合伙经营",
+    "劫财": "销售、中介、竞争性行业",
+}
+SS_SPOUSE_M = {
+    "比肩": "独立自主、同辈感", "劫财": "强势好胜、争执多", "食神": "温和贤惠、善持家",
+    "伤官": "才华出众、个性强", "偏财": "善交际、理财灵活", "正财": "贤惠持家、稳重",
+    "七杀": "霸道强势、有魄力", "正官": "端庄正派、守规矩", "偏印": "聪慧但孤僻", "正印": "仁慈善良、善照顾",
+}
+SS_SPOUSE_F = {
+    "比肩": "独立自主、同辈感", "劫财": "强势好胜、争执多", "食神": "温和体贴、善照顾",
+    "伤官": "才华出众、管束严", "偏财": "事业型、善经营", "正财": "事业稳定、有责任感",
+    "七杀": "有权威、责任感强", "正官": "正直有担当、事业心", "偏印": "聪明但不够体贴", "正印": "温和善良、善持家",
+}
+SHENSHA_DESC = {
+    "天乙贵人": "一生有贵人提携，遇难呈祥 ▲",
+    "文昌": "聪明好学，文才出众，利考试 ▲",
+    "将星": "有领导才能，威严果断 ▲",
+    "福星贵人": "福禄双全，一生平安 ▲",
+    "驿马": "奔波变动，宜出外发展 ─",
+    "桃花": "人缘魅力，感情丰富 ─",
+    "华盖": "性情孤高，喜艺术宗教 ─",
+    "劫煞": "竞争损耗，防意外破财 ▼",
+    "空亡": "虚幻不实，缘薄 ▼",
+}
+
+
+def _JudgeWangShuai(day_gan, month_zhi, pillars, wuxing_count):
+    day_wx = WUXING_TG[day_gan]
+    wx_order = ["木", "火", "土", "金", "水"]
+    d_idx = wx_order.index(day_wx)
+    month_wx = WUXING_DZ[month_zhi]
+    de_ling = month_wx in [day_wx, wx_order[(d_idx + 4) % 5]]
+    sheng_fu = wuxing_count[day_wx] + wuxing_count[wx_order[(d_idx + 4) % 5]]
+    ke_xie = 0
+    for i in range(5):
+        if i != d_idx and i != (d_idx + 4) % 5:
+            ke_xie += wuxing_count[wx_order[i]]
+    if de_ling and sheng_fu > ke_xie:
+        level = "偏旺"
+    elif not de_ling and ke_xie > sheng_fu:
+        level = "偏弱"
+    else:
+        level = "中和"
+    return level, de_ling, sheng_fu, ke_xie
+
+
+def _GetGeJu(month_zhi, month_gan, day_gan, pillars):
+    canggan = CANGGAN[month_zhi]
+    for cg in canggan:
+        ss = GetShiShen(day_gan, cg)
+        if ss in ["正官", "七杀", "正印", "偏印", "食神", "伤官", "正财", "偏财"]:
+            for gan, _ in pillars:
+                if gan == cg and gan != day_gan:
+                    return f"{ss}格"
+            return f"{ss}格(不透)"
+    return "无格"
+
+
+def Action_Report(gender, solar_datetime, early_zi=2):
+    data = Action_BaziDetail(gender, solar_datetime, early_zi)
+    dt = datetime.fromisoformat(solar_datetime)
+    year, month, day, hour = dt.year, dt.month, dt.day, dt.hour
+    yg, yz = GetGanZhi_Year(year)
+    mg, mz = GetGanZhi_Month(year, month, day)
+    dg, dz = GetGanZhi_Day(year, month, day)
+    hg, hz = GetGanZhi_Hour(hour, dg, early_zi)
+    pillars = [(yg, yz), (mg, mz), (dg, dz), (hg, hz)]
+    wuxing_count = data["五行统计"]
+    lines = []
+    lines.append("# 玄音八字 · 命理分析报告\n")
+    lines.append("## 基础信息\n")
+    lines.append(f"| 项目 | 内容 |")
+    lines.append(f"|------|------|")
+    lines.append(f"| 性别 | {data['性别']} |")
+    lines.append(f"| 阳历 | {data['阳历']} |")
+    lines.append(f"| 八字 | **{data['八字']}** |")
+    lines.append(f"| 生肖 | {data['生肖']} |")
+    lines.append(f"| 日主 | **{data['日主']}**（{data['日主五行']}） |")
+    lines.append("")
+    lines.append("## 四柱详析\n")
+    lines.append("| 柱位 | 天干 | 五行 | 十神 | 地支 | 五行 | 藏干 | 纳音 |")
+    lines.append("|------|------|------|------|------|------|------|------|")
+    pos_names = ["年柱", "月柱", "日柱", "时柱"]
+    pos_labels = ["年", "月", "日", "时"]
+    for pn, pl in zip(pos_names, pos_labels):
+        p = data[pn]
+        cg_str = "/".join([list(v.values())[0] for v in p["地支"]["藏干"]])
+        lines.append(f"| {pl} | {p['天干']['天干']} | {p['天干']['五行']} | {p['天干']['十神']} | {p['地支']['地支']} | {p['地支']['五行']} | {cg_str} | {p['纳音']} |")
+    lines.append("")
+    wx_sorted = sorted(wuxing_count.items(), key=lambda x: -x[1])
+    lines.append("## 五行统计\n")
+    lines.append("| 五行 | 木 | 火 | 土 | 金 | 水 |")
+    lines.append("|------|----|----|----|----|----|")
+    lines.append(f"| 次数 | {wuxing_count['木']} | {wuxing_count['火']} | {wuxing_count['土']} | {wuxing_count['金']} | {wuxing_count['水']} |")
+    wx_max = wx_sorted[0]
+    wx_min = wx_sorted[-1]
+    lines.append(f"\n最旺: **{wx_max[0]}**({wx_max[1]})  最弱: **{wx_min[0]}**({wx_min[1]})\n")
+    level, de_ling, sheng_fu, ke_xie = _JudgeWangShuai(dg, mz, pillars, wuxing_count)
+    lines.append("## 日主旺衰\n")
+    de_str = "得令" if de_ling else "失令"
+    lines.append(f"日主**{data['日主']}**({data['日主五行']})，{de_str}，生扶力量={sheng_fu}，克泄力量={ke_xie}")
+    if level == "偏旺":
+        lines.append(f"→ 日主**偏旺**，宜以克泄耗为用，取食伤泄秀或财官制衡")
+    elif level == "偏弱":
+        lines.append(f"→ 日主**偏弱**，宜以生扶为用，取印星生身或比劫助身")
+    else:
+        lines.append(f"→ 日主**中和**，命局平衡度好，行运适应面广")
+    lines.append("")
+    geju = _GetGeJu(mz, mg, dg, pillars)
+    lines.append("## 格局\n")
+    lines.append(f"**{geju}**\n")
+    ss_count = {}
+    for pn in pos_names:
+        if pn == "日柱":
+            continue
+        ss = data[pn]["天干"]["十神"]
+        ss_count[ss] = ss_count.get(ss, 0) + 1
+    lines.append("## 性格倾向\n")
+    day_wx = data["日主五行"]
+    day_yy = YINYANG_TG[dg]
+    lines.append(f"日主{data['日主']}({day_wx})，{WX_VIRTUE[day_wx]}德为先，性格基调：{WX_CHARACTER[day_wx][day_yy]}")
+    top_ss = sorted(ss_count.items(), key=lambda x: -x[1])[:3]
+    if top_ss:
+        ss_desc = "、".join([f"{s}(适中: {SS_TRAIT[s][1]})" for s, _ in top_ss])
+        lines.append(f"主要十神：{ss_desc}")
+    lines.append("")
+    lines.append("## 事业方向\n")
+    if top_ss:
+        ind_desc = "；".join([f"{s}→{SS_INDUSTRY[s]}" for s, _ in top_ss[:2]])
+        lines.append(f"十神取象：{ind_desc}")
+    wx_industry = {"木": "农林、教育、文化", "火": "能源、IT、电子", "土": "房地产、建筑、农业", "金": "金融、机械、法律", "水": "物流、传媒、旅游"}
+    lines.append(f"五行取行业：{day_wx}→{wx_industry.get(day_wx, '综合')}")
+    lines.append("")
+    lines.append("## 财运分析\n")
+    has_zhengcai = "正财" in ss_count
+    has_piancai = "偏财" in ss_count
+    has_shishang = "食神" in ss_count or "伤官" in ss_count
+    if has_zhengcai and has_shishang:
+        lines.append("食伤生财，才华可转化为财富，宜穏健经营 ▲")
+    elif has_piancai:
+        lines.append("偏财明显，财运灵活但波动大，宜短线操作忌贪 ─")
+    elif has_zhengcai:
+        lines.append("正财为主，收入穏定，宜勤俭持家 ▲")
+    else:
+        lines.append("财星不显，财运需待大运流年触发 ─")
+    if level == "偏旺" and not has_zhengcai and not has_piancai:
+        lines.append("身旺财弱，有力无财，待财运到时发力")
+    elif level == "偏弱" and (has_zhengcai or has_piancai):
+        lines.append("财多身弱，宜合作求财，不宜独担")
+    lines.append("")
+    lines.append("## 感情婚姻\n")
+    dz_ss = GetShiShen(dg, CANGGAN[dz][0])
+    spouse_map = SS_SPOUSE_M if gender == 1 else SS_SPOUSE_F
+    lines.append(f"日支（配偶宫）藏干主气十神为**{dz_ss}**，配偶倾向：{spouse_map.get(dz_ss, '待分析')}")
+    xch = data["刑冲合会"]
+    if "冲" in xch.get("日", {}).get("地支", {}):
+        lines.append("⚠ 日支逢冲，婚姻宫不稳，宜晚婚或异地姻缘 ▼")
+    if gender == 0 and "伤官" in ss_count and "正官" in ss_count:
+        lines.append("⚠ 女命伤官见官，感情多波折，宜找年龄差距大者 ▼")
+    lines.append("")
+    lines.append("## 健康提示\n")
+    lines.append(f"最旺五行{wx_max[0]}过旺易致：{WX_ILLNESS_HI.get(wx_max[0], '待分析')}")
+    lines.append(f"最弱五行{wx_min[0]}过弱易致：{WX_ILLNESS_LO.get(wx_min[0], '待分析')}")
+    organ = WX_ORGAN.get(day_wx, ("", ""))
+    lines.append(f"日主五行对应脏腑：{organ[0]}/{organ[1]}，需重点保养")
+    lines.append("")
+    lines.append("## 神煞\n")
+    lines.append("| 柱位 | 神煞 |")
+    lines.append("|------|------|")
+    for pn, pl in zip(pos_names, pos_labels):
+        ss_list = data[pn].get("神煞", [])
+        ss_str = "、".join(ss_list) if ss_list else "—"
+        lines.append(f"| {pl} | {ss_str} |")
+    lines.append("")
+    important_ss = []
+    for pn in pos_names:
+        for s in data[pn].get("神煞", []):
+            if s in SHENSHA_DESC and s not in [x[0] for x in important_ss]:
+                important_ss.append((s, SHENSHA_DESC[s]))
+    if important_ss:
+        lines.append("重点神煞解读：")
+        for s, d in important_ss:
+            lines.append(f"- **{s}**：{d}")
+    lines.append("")
+    lines.append("## 刑冲合会\n")
+    has_relation = False
+    for pos in ["年", "月", "日", "时"]:
+        for part in ["天干", "地支"]:
+            for rel_type, items in xch.get(pos, {}).get(part, {}).items():
+                for item in items:
+                    lines.append(f"- {pos}柱{part}·{rel_type}：{item['知识点']}（与{item['柱']}柱）")
+                    has_relation = True
+    if not has_relation:
+        lines.append("四柱间无明显刑冲合会关系")
+    lines.append("")
+    lines.append("## 大运走势\n")
+    dayun_data = data["大运"]
+    lines.append(f"起运年龄：{dayun_data['起运年龄']}岁\n")
+    lines.append("| 大运 | 年龄 | 年份 | 干支 |")
+    lines.append("|------|------|------|------|")
+    for dy in dayun_data["大运"]:
+        lines.append(f"| {dy['干支']} | {dy['开始年龄']}-{dy['结束年龄']} | {dy['开始年份']}-{dy['结束年份']} | {dy['天干']}{dy['地支']} |")
+    lines.append("")
+    current_year = datetime.now().year
+    current_age = current_year - year
+    for dy in dayun_data["大运"]:
+        if dy["开始年份"] <= current_year <= dy["结束年份"]:
+            lines.append("## 当前运势\n")
+            lines.append(f"当前{current_year}年，{current_age}岁，行**{dy['干支']}**大运")
+            dy_gan = TIANGAN.index(dy["天干"])
+            dy_ss = GetShiShen(dg, dy_gan)
+            lines.append(f"大运天干十神为**{dy_ss}**")
+            if level == "偏旺" and dy_ss in ["食神", "伤官", "正财", "偏财", "正官", "七杀"]:
+                lines.append("→ 为喜用，此运事业顺利、财运亨通 ▲")
+            elif level == "偏弱" and dy_ss in ["正印", "偏印", "比肩", "劫财"]:
+                lines.append("→ 为喜用，此运得助有力、穏步上升 ▲")
+            else:
+                lines.append("→ 需结合流年具体分析 ─")
+            break
+    lines.append("")
+    lines.append("---")
+    lines.append("> 以上分析基于传统八字命理学，仅供参考。命运掌握在自己手中，积极心态与努力才是改变人生的关键。")
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description="玄音八字 - 八字命理计算引擎")
-    parser.add_argument("--action", choices=["bazi", "huangli", "reverse"], required=True, help="操作类型")
+    parser.add_argument("--action", choices=["bazi", "huangli", "reverse", "report"], required=True, help="操作类型")
     parser.add_argument("--gender", type=int, choices=[0, 1], help="性别: 1=男, 0=女")
     parser.add_argument("--datetime", type=str, help="公历时间(ISO格式): 1990-06-15T12:00:00+08:00")
     parser.add_argument("--bazi", type=str, help="八字(用于反查): 庚午 壬午 辛亥 甲午")
@@ -411,6 +668,17 @@ def main():
         if not args.bazi:
             parser.error("reverse操作需要 --bazi")
         result = Action_ReverseBazi(args.bazi)
+    elif args.action == "report":
+        if not args.gender or not args.datetime:
+            parser.error("report操作需要 --gender 和 --datetime")
+        report_text = Action_Report(args.gender, args.datetime, args.early_zi)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(report_text)
+            print(f"报告已输出到: {args.output}")
+        else:
+            print(report_text)
+        return
 
     output = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
