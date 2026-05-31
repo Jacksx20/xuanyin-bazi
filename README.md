@@ -43,6 +43,12 @@ python scripts/main.py --action huangli
 
 # 八字反查
 python scripts/main.py --action reverse --bazi "庚午 壬午 辛亥 甲午"
+
+#或者安装技能后直接对话：
+用户：帮我排个八字，男，1990年6月15日中午12点
+用户：看看我今年的运势
+用户：今天适合搬家吗？
+用户：八字庚午壬午辛亥甲午对应什么时间？
 ```
 
 ## 安装
