@@ -76,35 +76,58 @@ SHENSHA_MAP = {
 
 
 def GetGanZhi_Year(year):
+    """
+    计算年柱天干地支
+    以公元4年为甲子年（基准年）
+    天干索引: 甲(0)乙(1)丙(2)丁(3)戊(4)己(5)庚(6)辛(7)壬(8)癸(9)
+    地支索引: 子(0)丑(1)寅(2)卯(3)辰(4)巳(5)午(6)未(7)申(8)酉(9)戌(10)亥(11)
+    """
     return (year - 4) % 10, (year - 4) % 12
 
 
 def GetGanZhi_Month(year, month, day):
+    """
+    计算月柱天干地支
+    使用五虎遁月法：根据年干推算月干基准
+    月支从寅月开始（正月建寅）
+    考虑节气交接：未过节气则属于上一月
+    """
     year_gan = (year - 4) % 10
-    month_gan_base = (year_gan % 5) * 2 + 2
-    month_dz = (month + 1) % 12
-    jieqi_day = _GetJieqiDay(year, month * 2 - 2 if month > 1 else 22)
+    month_gan_base = (year_gan % 5) * 2
+    jieqi_idx = (month - 1) * 2 + 2 if month < 12 else 0
+    jieqi_day = _GetJieqiDay(year, jieqi_idx)
+    actual_month = month
     if day < jieqi_day:
-        month_dz = (month_dz - 1) % 12
-        month_gan = (month_gan_base + month_dz - 2) % 10
-    else:
-        month_gan = (month_gan_base + month_dz - 2) % 10
-    return month_gan, month_dz
+        actual_month = month - 1 if month > 1 else 12
+    month_zhi = (actual_month + 1) % 12
+    month_gan = (month_gan_base + actual_month - 1) % 10
+    return month_gan, month_zhi
 
 
 def GetGanZhi_Day(year, month, day):
+    """
+    计算日柱天干地支
+    以1900年1月1日为基准日（甲戌日）
+    甲(0)戌(10) -> 天干偏移0，地支偏移10
+    """
     try:
         dt = datetime(year, month, day)
     except ValueError:
         return 0, 0
     base = datetime(1900, 1, 1)
     delta = (dt - base).days
-    day_gan = (delta + 6) % 10
-    day_dz = (delta + 0) % 12
+    day_gan = (delta + 0) % 10
+    day_dz = (delta + 10) % 12
     return day_gan, day_dz
 
 
 def GetGanZhi_Hour(hour, day_gan, early_zi=2):
+    """
+    计算时柱天干地支
+    使用五鼠遁时法：根据日干推算时干基准
+    时辰划分：子时(23-1点)、丑时(1-3点)、寅时(3-5点)...
+    early_zi: 1=早子时(23点归次日), 2=晚子时(23点归当日, 默认)
+    """
     dz = ((hour + 1) // 2) % 12
     gan_base = (day_gan % 5) * 2
     hour_gan = (gan_base + dz) % 10
@@ -135,6 +158,11 @@ def GetJieqi(year, month, day):
 
 
 def GetShiShen(day_gan, other_gan):
+    """
+    计算十神关系
+    根据日干与其他天干的五行生克关系和阴阳属性判断
+    十神：比肩、劫财、食神、伤官、偏财、正财、七杀、正官、偏印、正印
+    """
     day_wx = WUXING_TG[day_gan]
     other_wx = WUXING_TG[other_gan]
     day_yy = YINYANG_TG[day_gan]
@@ -157,12 +185,22 @@ def GetShiShen(day_gan, other_gan):
 
 
 def GetNayin(gan_idx, zhi_idx):
+    """
+    计算纳音五行
+    六十甲子纳音：每两个干支为一组，共30组
+    如甲子乙丑海中金、丙寅丁卯炉中火等
+    """
     jiazi_idx = (gan_idx * 6 + zhi_idx * 5) % 30
     pair_idx = jiazi_idx // 2
     return NAYIN_TABLE.get((pair_idx, jiazi_idx % 2), "未知")
 
 
 def GetShenSha(gan_idx, zhi_idx, day_gan):
+    """
+    计算神煞
+    主要神煞：天乙贵人、文昌、将星、福星贵人等
+    根据日干和地支的组合关系判断
+    """
     result = []
     for name, mapping in SHENSHA_MAP.items():
         if day_gan in mapping and zhi_idx in mapping[day_gan]:
@@ -174,14 +212,16 @@ def GetShenSha(gan_idx, zhi_idx, day_gan):
     return list(set(result))
 
 
-def GetDaYun(year_gan, year_zhi, month_gan, month_zhi, gender, year):
+def GetDaYun(year_gan, year_zhi, month_gan, month_zhi, gender, year, day_gan):
+    """
+    计算大运
+    根据性别和年干阴阳判断顺逆：
+    - 阳男阴女：顺行
+    - 阴男阳女：逆行
+    大运从月柱开始，每步大运10年
+    """
     forward = (gender == 1 and year_gan % 2 == 0) or (gender == 0 and year_gan % 2 == 1)
-    if forward:
-        next_jieqi_idx = ((month - 1) * 2 + 1) if hasattr(GetDaYun, '_month') else 3
-        steps_to_next = 3
-    else:
-        steps_to_next = 3
-    start_age = steps_to_next
+    start_age = 1
     start_year = year + start_age
     result = []
     cur_gan = month_gan
@@ -190,15 +230,16 @@ def GetDaYun(year_gan, year_zhi, month_gan, month_zhi, gender, year):
         if i > 0:
             cur_gan = (cur_gan + (1 if forward else -1)) % 10
             cur_zhi = (cur_zhi + (1 if forward else -1)) % 12
-        begin_year = start_year + i * 10 - 10
+        begin_year = start_year + i * 10
         end_year = begin_year + 9
-        begin_age = start_age + i * 10 - 10
+        begin_age = start_age + i * 10
         end_age = begin_age + 9
+        shishen = GetShiShen(day_gan, cur_gan)
         result.append({
             "干支": TIANGAN[cur_gan] + DIZHI[cur_zhi],
             "天干": TIANGAN[cur_gan],
             "地支": DIZHI[cur_zhi],
-            "天干十神": SHISHEN_NAMES[0],
+            "天干十神": shishen,
             "开始年份": begin_year,
             "结束年份": end_year,
             "开始年龄": begin_age,
@@ -208,31 +249,35 @@ def GetDaYun(year_gan, year_zhi, month_gan, month_zhi, gender, year):
 
 
 def GetXingChongHeHui(pillars):
+    """
+    计算四柱间的刑冲合会关系
+    天干相冲：甲庚冲、乙辛冲、丙壬冲、丁癸冲
+    地支六冲：子午、丑未、寅申、卯酉、辰戌、巳亥
+    地支六合：子丑合土、寅亥合木、卯戌合火、辰酉合金、巳申合水、午未合土
+    地支自刑：辰辰、午午、酉酉、亥亥
+    """
     result = {"年": {"天干": {}, "地支": {}}, "月": {"天干": {}, "地支": {}},
               "日": {"天干": {}, "地支": {}}, "时": {"天干": {}, "地支": {}}}
-    chong_tg = [(0, 6), (1, 7), (2, 8), (3, 9), (4, 0), (5, 1), (6, 0), (7, 1), (8, 2), (9, 3)]
-    chong_dz = [(0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11), (6, 0), (7, 1), (8, 2), (9, 3), (10, 4), (11, 5)]
+    chong_tg = {0: 6, 1: 7, 2: 8, 3: 9, 4: 0, 5: 1, 6: 0, 7: 1, 8: 2, 9: 3}
+    chong_dz = {0: 6, 1: 7, 2: 8, 3: 9, 4: 10, 5: 11, 6: 0, 7: 1, 8: 2, 9: 3, 10: 4, 11: 5}
     he_dz = {(0, 1): "土", (2, 11): "木", (3, 10): "火", (4, 9): "金", (5, 8): "水", (6, 7): "土"}
-    xing_dz = [(2, 5, 8), (1, 10, 7), (0, 3), (6, 6), (9, 9), (4, 4), (11, 11)]
     pos_names = ["年", "月", "日", "时"]
     for i in range(4):
         for j in range(i + 1, 4):
             gi, gj = pillars[i][0], pillars[j][0]
-            for a, b in chong_tg:
-                if (gi == a and gj == b) or (gi == b and gj == a):
-                    result[pos_names[i]]["天干"].setdefault("冲", []).append(
-                        {"柱": pos_names[j], "知识点": f"{TIANGAN[gi]}{TIANGAN[gj]}相冲"})
-                    result[pos_names[j]]["天干"].setdefault("冲", []).append(
-                        {"柱": pos_names[i], "知识点": f"{TIANGAN[gj]}{TIANGAN[gi]}相冲"})
+            if chong_tg.get(gi) == gj:
+                result[pos_names[i]]["天干"].setdefault("冲", []).append(
+                    {"柱": pos_names[j], "知识点": f"{TIANGAN[gi]}{TIANGAN[gj]}相冲"})
+                result[pos_names[j]]["天干"].setdefault("冲", []).append(
+                    {"柱": pos_names[i], "知识点": f"{TIANGAN[gj]}{TIANGAN[gi]}相冲"})
             zi, zj = pillars[i][1], pillars[j][1]
-            for a, b in chong_dz:
-                if (zi == a and zj == b) or (zi == b and zj == a):
-                    result[pos_names[i]]["地支"].setdefault("冲", []).append(
-                        {"柱": pos_names[j], "知识点": f"{DIZHI[zi]}{DIZHI[zj]}相冲"})
-                    result[pos_names[j]]["地支"].setdefault("冲", []).append(
-                        {"柱": pos_names[i], "知识点": f"{DIZHI[zj]}{DIZHI[zi]}相冲"})
-            pair = tuple(sorted([zi, zj]))
-            if pair in he_dz or (pair[1], pair[0]) in he_dz:
+            if chong_dz.get(zi) == zj:
+                result[pos_names[i]]["地支"].setdefault("冲", []).append(
+                    {"柱": pos_names[j], "知识点": f"{DIZHI[zi]}{DIZHI[zj]}相冲"})
+                result[pos_names[j]]["地支"].setdefault("冲", []).append(
+                    {"柱": pos_names[i], "知识点": f"{DIZHI[zj]}{DIZHI[zi]}相冲"})
+            pair = (min(zi, zj), max(zi, zj))
+            if pair in he_dz:
                 result[pos_names[i]]["地支"].setdefault("合", []).append(
                     {"柱": pos_names[j], "知识点": f"{DIZHI[zi]}{DIZHI[zj]}相合"})
                 result[pos_names[j]]["地支"].setdefault("合", []).append(
@@ -278,6 +323,18 @@ def GetPillarInfo(gan, zhi, day_gan, position):
 
 
 def Action_BaziDetail(gender, solar_datetime, early_zi=2):
+    """
+    八字排盘主函数
+    计算完整的八字信息，包括四柱、五行、十神、神煞、刑冲合会、大运等
+    
+    参数:
+        gender: 性别 (1=男, 0=女)
+        solar_datetime: 公历时间 (ISO格式)
+        early_zi: 早晚子时处理 (1=早子时, 2=晚子时, 默认晚子时)
+    
+    返回:
+        包含完整八字信息的字典
+    """
     dt = datetime.fromisoformat(solar_datetime)
     year, month, day, hour = dt.year, dt.month, dt.day, dt.hour
     yg, yz = GetGanZhi_Year(year)
@@ -299,7 +356,7 @@ def Action_BaziDetail(gender, solar_datetime, early_zi=2):
         "时柱": GetPillarInfo(hg, hz, dg, "时"),
         "刑冲合会": GetXingChongHeHui(pillars),
     }
-    dayun, start_age, start_year = GetDaYun(yg, yz, mg, mz, gender, year)
+    dayun, start_age, start_year = GetDaYun(yg, yz, mg, mz, gender, year, dg)
     result["大运"] = {
         "起运年龄": start_age,
         "大运": dayun
@@ -509,7 +566,7 @@ def Action_Report(gender, solar_datetime, early_zi=2):
     pos_labels = ["年", "月", "日", "时"]
     for pn, pl in zip(pos_names, pos_labels):
         p = data[pn]
-        cg_str = "/".join([list(v.values())[0] for v in p["地支"]["藏干"]])
+        cg_str = "/".join([list(v.values())[0]["天干"] for v in p["地支"]["藏干"]])
         lines.append(f"| {pl} | {p['天干']['天干']} | {p['天干']['五行']} | {p['天干']['十神']} | {p['地支']['地支']} | {p['地支']['五行']} | {cg_str} | {p['纳音']} |")
     lines.append("")
     wx_sorted = sorted(wuxing_count.items(), key=lambda x: -x[1])
