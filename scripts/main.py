@@ -75,13 +75,24 @@ SHENSHA_MAP = {
 }
 
 
-def GetGanZhi_Year(year):
+def GetGanZhi_Year(year, month=1, day=1):
     """
     计算年柱天干地支
     以公元4年为甲子年（基准年）
+    考虑立春：立春前属上一年，立春及以后属本年
+    立春通常在2月4日左右
+    
     天干索引: 甲(0)乙(1)丙(2)丁(3)戊(4)己(5)庚(6)辛(7)壬(8)癸(9)
     地支索引: 子(0)丑(1)寅(2)卯(3)辰(4)巳(5)午(6)未(7)申(8)酉(9)戌(10)亥(11)
     """
+    # 获取立春节气日（索引2对应立春）
+    lichun_day = _GetJieqiDay(year, 2)
+    
+    # 判断是否在立春前
+    if month < 2 or (month == 2 and day < lichun_day):
+        # 立春前，属上一年
+        year -= 1
+    
     return (year - 4) % 10, (year - 4) % 12
 
 
@@ -90,21 +101,101 @@ def GetGanZhi_Month(year, month, day):
     计算月柱天干地支
     使用五虎遁月法：根据年干推算月干基准
     月支从寅月开始（正月建寅）
-    考虑节气交接：未过节气则属于上一月
+    考虑节气交接：节气交接日及以后属于新的月份
     
-    节气规律：
-    - 每月月首节气：小寒(1月6日)、立春(2月4日)、惊蛰(3月6日)、清明(4月5日)、立夏(5月6日)...
-    - 月支对应：子(11月)、丑(12月)、寅(1月)、卯(2月)、辰(3月)、巳(4月)...
+    节气规律（每月第一个节气）：
+    - 小寒(1月6日左右)：丑月开始
+    - 立春(2月4日左右)：寅月开始
+    - 惊蛰(3月6日左右)：卯月开始  
+    - 清明(4月5日左右)：辰月开始
+    - 立夏(5月6日左右)：巳月开始
+    - 芒种(6月6日左右)：午月开始
+    - 小暑(7月7日左右)：未月开始
+    - 立秋(8月7日左右)：申月开始
+    - 白露(9月8日左右)：酉月开始
+    - 寒露(10月8日左右)：戌月开始
+    - 立冬(11月7日左右)：亥月开始
+    - 大雪(12月7日左右)：子月开始
+    
+    月支对应：子(11-12月)丑(12-1月)寅(1-2月)卯(2-3月)辰(3-4月)巳(4-5月)...
+    
+    五虎遁月歌诀：
+    甲己之年丙作首，乙庚之岁戊为头。
+    丙辛必定寻庚起，丁壬壬位顺行流。
+    若问戊癸何方发，甲寅之上好追求。
     """
-    year_gan = (year - 4) % 10
-    month_gan_base = (year_gan % 5) * 2
+    # 获取立春节气日，判断年干
+    lichun_day = _GetJieqiDay(year, 2)
+    if month < 2 or (month == 2 and day < lichun_day):
+        # 立春前，使用上一年的年干
+        year_gan = (year - 1 - 4) % 10
+    else:
+        # 立春及以后，使用本年的年干
+        year_gan = (year - 4) % 10
+    
+    # 五虎遁月表：甲己年丙寅起，乙庚年戊寅起，丙辛年庚寅起，丁壬年壬寅起，戊癸年甲寅起
+    month_gan_base_map = {0: 2, 1: 4, 2: 6, 3: 8, 4: 0, 5: 2, 6: 4, 7: 6, 8: 8, 9: 0}
+    month_gan_base = month_gan_base_map[year_gan]
+    
+    # 节气索引对应的月支
+    # 节气索引: 0(小寒),2(立春),4(惊蛰),6(清明),8(立夏),10(芒种),12(小暑),14(立秋),16(白露),18(寒露),20(立冬),22(大雪)
+    # 对应月支: 1(丑),2(寅),3(卯),4(辰),5(巳),6(午),7(未),8(申),9(酉),10(戌),11(亥),0(子)
+    
+    # 计算当前日期在一年中的天数
+    import datetime
+    current_date = datetime.date(year, month, day)
+    year_start = datetime.date(year, 1, 1)
+    day_of_year = (current_date - year_start).days + 1
+    
+    # 获取所有节气的日期
+    jieqi_days = []
+    for i in range(0, 24, 2):  # 只取节（偶数索引）
+        jieqi_day = _GetJieqiDay(year, i)
+        # 估算节气月份（近似）
+        jieqi_month = (i // 2) + 1
+        if jieqi_month > 12:
+            jieqi_month -= 12
+        # 计算在一年中的天数（近似）
+        # 这里简化处理，实际应该考虑每个月的天数
+        jieqi_days.append((jieqi_month, jieqi_day))
+    
+    # 确定月支
+    # 简化算法：根据月份和节气日判断
+    # 节气月支映射：1月小寒后->丑(1), 2月立春后->寅(2), 3月惊蛰后->卯(3), 4月清明后->辰(4)...
+    month_zhi_map = {
+        1: 1,  # 1月（小寒后）：丑
+        2: 2,  # 2月（立春后）：寅
+        3: 3,  # 3月（惊蛰后）：卯
+        4: 4,  # 4月（清明后）：辰
+        5: 5,  # 5月（立夏后）：巳
+        6: 6,  # 6月（芒种后）：午
+        7: 7,  # 7月（小暑后）：未
+        8: 8,  # 8月（立秋后）：申
+        9: 9,  # 9月（白露后）：酉
+        10: 10, # 10月（寒露后）：戌
+        11: 11, # 11月（立冬后）：亥
+        12: 0   # 12月（大雪后）：子
+    }
+    
+    # 获取当前月的节气日
     jieqi_idx = ((month - 1) % 12) * 2
     jieqi_day = _GetJieqiDay(year, jieqi_idx)
-    actual_month = month
+    
+    # 判断是否已过节气
     if day < jieqi_day:
-        actual_month = month - 1 if month > 1 else 12
-    month_zhi = actual_month % 12
-    month_gan = (month_gan_base + actual_month - 1) % 10
+        # 未过节气，属于上一月
+        lunar_month = month - 1 if month > 1 else 12
+    else:
+        # 已过节气，属于本月
+        lunar_month = month
+    
+    # 获取月支
+    month_zhi = month_zhi_map.get(lunar_month, 2)  # 默认寅月
+    
+    # 月干：根据月支推算（寅月为起点）
+    # 从寅月开始的偏移量：寅(0)、卯(1)、辰(2)...丑(11)
+    offset = (month_zhi + 10) % 12
+    month_gan = (month_gan_base + offset) % 10
     return month_gan, month_zhi
 
 
@@ -341,7 +432,7 @@ def Action_BaziDetail(gender, solar_datetime, early_zi=2):
     """
     dt = datetime.fromisoformat(solar_datetime)
     year, month, day, hour = dt.year, dt.month, dt.day, dt.hour
-    yg, yz = GetGanZhi_Year(year)
+    yg, yz = GetGanZhi_Year(year, month, day)
     mg, mz = GetGanZhi_Month(year, month, day)
     dg, dz = GetGanZhi_Day(year, month, day)
     hg, hz = GetGanZhi_Hour(hour, dg, early_zi)
@@ -379,7 +470,7 @@ def Action_HuangLi(solar_datetime=None):
     else:
         dt = datetime.now()
     year, month, day = dt.year, dt.month, dt.day
-    yg, yz = GetGanZhi_Year(year)
+    yg, yz = GetGanZhi_Year(year, month, day)
     mg, mz = GetGanZhi_Month(year, month, day)
     dg, dz = GetGanZhi_Day(year, month, day)
     ganzhi = f"{TIANGAN[yg]}{DIZHI[yz]} {TIANGAN[mg]}{DIZHI[mz]} {TIANGAN[dg]}{DIZHI[dz]}"
@@ -546,7 +637,7 @@ def Action_Report(gender, solar_datetime, early_zi=2):
     data = Action_BaziDetail(gender, solar_datetime, early_zi)
     dt = datetime.fromisoformat(solar_datetime)
     year, month, day, hour = dt.year, dt.month, dt.day, dt.hour
-    yg, yz = GetGanZhi_Year(year)
+    yg, yz = GetGanZhi_Year(year, month, day)
     mg, mz = GetGanZhi_Month(year, month, day)
     dg, dz = GetGanZhi_Day(year, month, day)
     hg, hz = GetGanZhi_Hour(hour, dg, early_zi)
