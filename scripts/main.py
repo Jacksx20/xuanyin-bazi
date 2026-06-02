@@ -91,15 +91,19 @@ def GetGanZhi_Month(year, month, day):
     使用五虎遁月法：根据年干推算月干基准
     月支从寅月开始（正月建寅）
     考虑节气交接：未过节气则属于上一月
+    
+    节气规律：
+    - 每月月首节气：小寒(1月6日)、立春(2月4日)、惊蛰(3月6日)、清明(4月5日)、立夏(5月6日)...
+    - 月支对应：子(11月)、丑(12月)、寅(1月)、卯(2月)、辰(3月)、巳(4月)...
     """
     year_gan = (year - 4) % 10
     month_gan_base = (year_gan % 5) * 2
-    jieqi_idx = (month - 1) * 2 + 2 if month < 12 else 0
+    jieqi_idx = ((month - 1) % 12) * 2
     jieqi_day = _GetJieqiDay(year, jieqi_idx)
     actual_month = month
     if day < jieqi_day:
         actual_month = month - 1 if month > 1 else 12
-    month_zhi = (actual_month + 1) % 12
+    month_zhi = actual_month % 12
     month_gan = (month_gan_base + actual_month - 1) % 10
     return month_gan, month_zhi
 
